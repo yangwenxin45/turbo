@@ -22,6 +22,7 @@ public class StartEventExecutor extends ElementExecutor {
     protected void postExecute(RuntimeContext runtimeContext) throws ProcessException {
         NodeInstanceBO currentNodeInstance = runtimeContext.getCurrentNodeInstance();
         currentNodeInstance.setInstanceDataId(runtimeContext.getInstanceDataId());
+        // 设置当前节点实例为已完成，并添加到已完成节点列表中
         currentNodeInstance.setStatus(NodeInstanceStatus.COMPLETED);
         runtimeContext.getNodeInstanceList().add(currentNodeInstance);
     }

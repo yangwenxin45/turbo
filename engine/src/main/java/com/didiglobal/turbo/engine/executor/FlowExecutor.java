@@ -66,9 +66,11 @@ public class FlowExecutor extends RuntimeExecutor {
      */
     private void preExecute(RuntimeContext runtimeContext) throws ProcessException {
         //1.save FlowInstancePO into db
+        // 生成流程
         FlowInstancePO flowInstancePO = saveFlowInstance(runtimeContext);
 
         //2.save InstanceDataPO into db
+        // 保存流程变量
         String instanceDataId = saveInstanceData(flowInstancePO, runtimeContext.getInstanceDataMap());
 
         //3.update runtimeContext
@@ -131,11 +133,13 @@ public class FlowExecutor extends RuntimeExecutor {
         instanceDataPO.setNodeInstanceId(StringUtils.EMPTY);
         instanceDataPO.setNodeKey(StringUtils.EMPTY);
         instanceDataPO.setCreateTime(new Date());
+        // 类型为实例初始化
         instanceDataPO.setType(InstanceDataType.INIT);
         return instanceDataPO;
     }
 
     private void fillExecuteContext(RuntimeContext runtimeContext, String flowInstanceId, String instanceDataId) throws ProcessException {
+        // 初始化流程实例数据
         runtimeContext.setFlowInstanceId(flowInstanceId);
         runtimeContext.setFlowInstanceStatus(FlowInstanceStatus.RUNNING);
 
@@ -159,19 +163,23 @@ public class FlowExecutor extends RuntimeExecutor {
         suspendNodeInstance.setSourceNodeKey(StringUtils.EMPTY);
         runtimeContext.setSuspendNodeInstance(suspendNodeInstance);
 
+        // 将开始节点设置为当前节点模型和暂停节点实例
         runtimeContext.setCurrentNodeModel(startEvent);
     }
 
     private void doExecute(RuntimeContext runtimeContext) throws ProcessException {
+        // 根据节点类型获取对应的执行器
         RuntimeExecutor runtimeExecutor = getExecuteExecutor(runtimeContext);
         while (runtimeExecutor != null) {
             runtimeExecutor.execute(runtimeContext);
+            // 获取下一个节点模型，并根据模型类型获取相应的执行器
             runtimeExecutor = runtimeExecutor.getExecuteExecutor(runtimeContext);
         }
     }
 
     private void postExecute(RuntimeContext runtimeContext) throws ProcessException {
 
+        // 将当前节点设置为流程暂停点
         //1.update context with processStatus
         if (runtimeContext.getProcessStatus() == ProcessStatus.SUCCESS) {
             //SUCCESS: update runtimeContext: update suspendNodeInstance
@@ -181,9 +189,11 @@ public class FlowExecutor extends RuntimeExecutor {
         }
 
         //2.save nodeInstanceList to db
+        // 持久化节点实例并保存日志，日志类型为执行
         saveNodeInstanceList(runtimeContext, NodeInstanceType.EXECUTE);
 
         //3.update flowInstance status while completed
+        // 判断流程是否完成，完成则更新状态
         if (isCompleted(runtimeContext)) {
             if (isSubFlowInstance(runtimeContext)) {
                 processInstanceDAO.updateStatus(runtimeContext.getFlowInstanceId(), FlowInstanceStatus.END);
@@ -326,12 +336,15 @@ public class FlowExecutor extends RuntimeExecutor {
     }
 
     private void postCommit(RuntimeContext runtimeContext) throws ProcessException {
+        // 将当前节点设置为流程暂停点
         if (runtimeContext.getProcessStatus() == ProcessStatus.SUCCESS && runtimeContext.getCurrentNodeInstance() != null) {
             runtimeContext.setSuspendNodeInstance(runtimeContext.getCurrentNodeInstance());
         }
         //update FlowInstancePO to db
+        // 持久化节点实例并保存日志，日志类型为提交
         saveNodeInstanceList(runtimeContext, NodeInstanceType.COMMIT);
 
+        // 判断流程是否完成，完成则更新状态
         if (isCompleted(runtimeContext)) {
             if (isSubFlowInstance(runtimeContext)) {
                 processInstanceDAO.updateStatus(runtimeContext.getFlowInstanceId(), FlowInstanceStatus.END);
@@ -561,6 +574,7 @@ public class FlowExecutor extends RuntimeExecutor {
 
     private RuntimeExecutor getElementExecutor(RuntimeContext runtimeContext) throws ProcessException {
         //if process completed, return null
+        // 判断流程是否完成
         if (isCompleted(runtimeContext)) {
             return null;
         }

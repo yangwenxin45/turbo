@@ -102,12 +102,15 @@ public class RuntimeProcessor {
         RuntimeContext runtimeContext = null;
         try {
             //1.param validate
+            // flowModuleId 和 flowDeployId校验
             ParamValidator.validate(startProcessParam);
 
             //2.getFlowInfo
+            // 获取流程模型信息
             FlowInfo flowInfo = getFlowInfo(startProcessParam);
 
             //3.init context for runtime
+            // 初始化 runtimeContext 流程模型信息和流程变量信息
             runtimeContext = buildStartProcessContext(flowInfo, startProcessParam.getVariables(), startProcessParam.getRuntimeContext());
 
             //4.process

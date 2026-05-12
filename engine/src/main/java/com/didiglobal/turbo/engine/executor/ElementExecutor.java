@@ -82,11 +82,13 @@ public abstract class ElementExecutor extends RuntimeExecutor {
         currentNodeInstance.setNodeKey(nodeKey);
         currentNodeInstance.setSourceNodeInstanceId(sourceNodeInstanceId);
         currentNodeInstance.setSourceNodeKey(sourceNodeKey);
+        // 设置当前节点实例状态为处理中
         currentNodeInstance.setStatus(NodeInstanceStatus.ACTIVE);
         currentNodeInstance.getProperties().putAll(runtimeContext.getExtendProperties());
         currentNodeInstance.setNodeType(runtimeContext.getCurrentNodeModel().getType());
         currentNodeInstance.setInstanceDataId(StringUtils.defaultString(runtimeContext.getInstanceDataId(), StringUtils.EMPTY));
 
+        // 设置当前节点实例
         runtimeContext.setCurrentNodeInstance(currentNodeInstance);
     }
 
@@ -99,7 +101,9 @@ public abstract class ElementExecutor extends RuntimeExecutor {
     @Override
     protected RuntimeExecutor getExecuteExecutor(RuntimeContext runtimeContext) throws ProcessException {
         Map<String, FlowElement> flowElementMap = runtimeContext.getFlowElementMap();
+        // 获取下一个节点
         FlowElement flowElement = getUniqueNextNode(runtimeContext.getCurrentNodeModel(), flowElementMap);
+        // 设置下一个节点为当前节点模型
         runtimeContext.setCurrentNodeModel(flowElement);
         return executorFactory.getElementExecutor(flowElement);
     }
@@ -272,6 +276,9 @@ public abstract class ElementExecutor extends RuntimeExecutor {
         return false;
     }
 
+    /**
+     * 获取连线节点
+     */
     protected FlowElement getUniqueNextNode(FlowElement currentFlowElement, Map<String, FlowElement> flowElementMap) {
         List<String> outgoingKeyList = currentFlowElement.getOutgoing();
         String nextElementKey = outgoingKeyList.get(0);
@@ -282,6 +289,9 @@ public abstract class ElementExecutor extends RuntimeExecutor {
         return nextFlowElement;
     }
 
+    /**
+     * 根据表达式计算下一个节点
+     */
     protected FlowElement calculateNextNode(FlowElement currentFlowElement, Map<String, FlowElement> flowElementMap,
                                             Map<String, InstanceData> instanceDataMap) throws ProcessException {
         FlowElement nextFlowElement = calculateOutgoing(currentFlowElement, flowElementMap, instanceDataMap);
