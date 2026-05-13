@@ -162,12 +162,15 @@ public class RuntimeProcessor {
         RuntimeContext runtimeContext = null;
         try {
             //1.param validate
+            // flowInstanceId 和 taskInstanceId校验
             ParamValidator.validate(commitTaskParam);
 
             //2.get flowInstance
+            // 获取流程实例
             FlowInstanceBO flowInstanceBO = getFlowInstanceBO(commitTaskParam.getFlowInstanceId());
 
             //3.check status
+            // 校验流程状态
             if (flowInstanceBO.getStatus() == FlowInstanceStatus.TERMINATED) {
                 LOGGER.warn("commit failed: flowInstance has been completed.||commitTaskParam={}", commitTaskParam);
                 throw new ProcessException(ErrorEnum.COMMIT_REJECTRD);
@@ -218,6 +221,7 @@ public class RuntimeProcessor {
         }
 
         //4. set suspendNodeInstance with taskInstance in param
+        // 设置暂停的节点
         NodeInstanceBO suspendNodeInstance = new NodeInstanceBO();
         suspendNodeInstance.setNodeInstanceId(realNodeInstanceId);
         runtimeContext.setSuspendNodeInstance(suspendNodeInstance);
@@ -738,6 +742,7 @@ public class RuntimeProcessor {
                 }
             } else {
                 RuntimeResult.NodeExecuteResult result = new RuntimeResult.NodeExecuteResult();
+                // 把暂停节点设置为激活节点
                 result.setActiveTaskInstance(buildActiveTaskInstance(runtimeContext.getSuspendNodeInstance(), runtimeContext));
                 result.setVariables(InstanceDataUtil.getInstanceDataList(runtimeContext.getInstanceDataMap()));
                 nodeExecuteResults.add(result);

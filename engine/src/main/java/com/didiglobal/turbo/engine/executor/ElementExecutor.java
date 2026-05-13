@@ -110,6 +110,7 @@ public abstract class ElementExecutor extends RuntimeExecutor {
 
     @Override
     public void commit(RuntimeContext runtimeContext) throws ProcessException {
+        // 设置当前节点实例
         preCommit(runtimeContext);
 
         try {

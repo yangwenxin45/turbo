@@ -242,6 +242,7 @@ public class FlowExecutor extends RuntimeExecutor {
         String nodeInstanceId = suspendNodeInstance.getNodeInstanceId();
 
         //1.get instanceData from db
+        // 获取暂停节点实例
         NodeInstancePO nodeInstancePO = nodeInstanceDAO.selectByNodeInstanceId(flowInstanceId, nodeInstanceId);
         if (nodeInstancePO == null) {
             LOGGER.warn("preCommit failed: cannot find nodeInstancePO from db.||flowInstanceId={}||nodeInstanceId={}",
@@ -250,6 +251,7 @@ public class FlowExecutor extends RuntimeExecutor {
         }
 
         //unexpected: flowInstance is completed
+        // 校验流程是否完成
         if (isCompleted(runtimeContext)) {
             LOGGER.warn("preExecute warning: reentrant process. FlowInstance has been processed completely.||runtimeContext={}", runtimeContext);
             runtimeContext.setFlowInstanceStatus(FlowInstanceStatus.COMPLETED);
@@ -262,6 +264,8 @@ public class FlowExecutor extends RuntimeExecutor {
             suspendNodeInstance.setStatus(nodeInstancePO.getStatus());
             throw new ReentrantException(ErrorEnum.REENTRANT_WARNING);
         }
+
+        // 获取当前节点的变量数据
         Map<String, InstanceData> instanceDataMap;
         String instanceDataId = nodeInstancePO.getInstanceDataId();
         if (StringUtils.isBlank(instanceDataId)) {
@@ -277,6 +281,7 @@ public class FlowExecutor extends RuntimeExecutor {
         }
 
         //2.merge data while commitDataMap is not empty
+        // 合并当前节点变量数据和提交传入的变量数据
         Map<String, InstanceData> commitDataMap = runtimeContext.getInstanceDataMap();
         boolean isCallActivityNode = FlowModelUtil.isElementType(nodeInstancePO.getNodeKey(), runtimeContext.getFlowElementMap(), FlowElementType.CALL_ACTIVITY);
         if (isCallActivityNode) {
@@ -288,6 +293,7 @@ public class FlowExecutor extends RuntimeExecutor {
 
             InstanceDataPO commitInstanceDataPO = buildCommitInstanceData(runtimeContext, nodeInstanceId,
                 nodeInstancePO.getNodeKey(), instanceDataId, instanceDataMap);
+            // 提交传入的变量数据不为空则插入
             instanceDataDAO.insert(commitInstanceDataPO);
         }
 
@@ -317,15 +323,19 @@ public class FlowExecutor extends RuntimeExecutor {
         runtimeContext.setInstanceDataId(instanceDataId);
         runtimeContext.setInstanceDataMap(instanceDataMap);
 
+        // 更新暂停节点
         updateSuspendNodeInstanceBO(runtimeContext.getSuspendNodeInstance(), nodeInstancePO, instanceDataId);
 
+        // 设置当前节点模型
         setCurrentFlowModel(runtimeContext);
 
+        // 初始化已处理节点列表
         runtimeContext.setNodeInstanceList(Lists.newArrayList());
     }
 
     private void doCommit(RuntimeContext runtimeContext) throws ProcessException {
         RuntimeExecutor runtimeExecutor = getExecuteExecutor(runtimeContext);
+        // 执行提交
         runtimeExecutor.commit(runtimeContext);
 
         runtimeExecutor = runtimeExecutor.getExecuteExecutor(runtimeContext);
