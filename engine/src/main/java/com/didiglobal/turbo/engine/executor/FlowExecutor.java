@@ -393,6 +393,7 @@ public class FlowExecutor extends RuntimeExecutor {
         String flowInstanceId = runtimeContext.getFlowInstanceId();
 
         //1.check node: only the latest enabled(ACTIVE or COMPLETED) nodeInstance can be rollbacked.
+        // 校验节点，只有最新激活或者完成的节点才能回滚
         String suspendNodeInstanceId = runtimeContext.getSuspendNodeInstance().getNodeInstanceId();
         NodeInstancePO rollbackNodeInstancePO = getActiveNodeForRollback(flowInstanceId, suspendNodeInstanceId,
             runtimeContext.getFlowElementMap());
@@ -500,6 +501,7 @@ public class FlowExecutor extends RuntimeExecutor {
         saveNodeInstanceList(runtimeContext, NodeInstanceType.ROLLBACK);
 
         if (FlowModelUtil.isElementType(runtimeContext.getCurrentNodeModel().getKey(), runtimeContext.getFlowElementMap(), FlowElementType.START_EVENT)) {
+            // 已经滚回到开始节点，则终止流程
             runtimeContext.setFlowInstanceStatus(FlowInstanceStatus.TERMINATED);
             processInstanceDAO.updateStatus(runtimeContext.getFlowInstanceId(), FlowInstanceStatus.TERMINATED);
         } else if (runtimeContext.getFlowInstanceStatus() == FlowInstanceStatus.END) {

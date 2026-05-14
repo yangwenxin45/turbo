@@ -101,9 +101,11 @@ public class UserTaskExecutor extends ElementExecutor {
 
         NodeInstanceBO currentNodeInstance = runtimeContext.getCurrentNodeInstance();
         int currentStatus = currentNodeInstance.getStatus();
+        // 设置当前节点状态为处理已撤销
         currentNodeInstance.setStatus(NodeInstanceStatus.DISABLED);
         runtimeContext.getNodeInstanceList().add(currentNodeInstance);
         if (currentStatus == NodeInstanceStatus.COMPLETED) {
+            // 回滚到前一个完成任务节点则新建一个激活节点实例
             NodeInstanceBO newNodeInstanceBO = new NodeInstanceBO();
             BeanUtils.copyProperties(currentNodeInstance, newNodeInstanceBO);
             // TODO: 2019/12/31 to insert new record

@@ -170,9 +170,11 @@ public abstract class ElementExecutor extends RuntimeExecutor {
         NodeInstanceBO currentNodeInstance;
         if (runtimeContext.getCurrentNodeInstance() == null) {
             //case1
+            // 传入节点回滚
             currentNodeInstance = runtimeContext.getSuspendNodeInstance();
         } else {
             //case2
+            // 后续节点回滚
             nodeInstanceId = runtimeContext.getCurrentNodeInstance().getSourceNodeInstanceId();
             NodeInstancePO currentNodeInstancePO = nodeInstanceDAO.selectByNodeInstanceId(flowInstanceId, nodeInstanceId);
             if (currentNodeInstancePO == null) {
@@ -216,6 +218,7 @@ public abstract class ElementExecutor extends RuntimeExecutor {
      */
     protected void postRollback(RuntimeContext runtimeContext) throws ProcessException {
         NodeInstanceBO currentNodeInstance = runtimeContext.getCurrentNodeInstance();
+        // 设置当前节点状态为处理已撤销
         currentNodeInstance.setStatus(NodeInstanceStatus.DISABLED);
         runtimeContext.getNodeInstanceList().add(currentNodeInstance);
     }
@@ -232,6 +235,7 @@ public abstract class ElementExecutor extends RuntimeExecutor {
         String flowInstanceId = runtimeContext.getFlowInstanceId();
         NodeInstanceBO currentNodeInstance = runtimeContext.getCurrentNodeInstance();
 
+        // 获取前一个节点实例ID
         String sourceNodeInstanceId = currentNodeInstance.getSourceNodeInstanceId();
         if (StringUtils.isBlank(sourceNodeInstanceId)) {
             LOGGER.warn("getRollbackExecutor: there's no sourceNodeInstance(startEvent)."
@@ -240,6 +244,7 @@ public abstract class ElementExecutor extends RuntimeExecutor {
         }
 
         // TODO: 2019/12/13 get from cache
+        // 获取前一个节点实例
         NodeInstancePO sourceNodeInstancePO = nodeInstanceDAO.selectByNodeInstanceId(flowInstanceId, sourceNodeInstanceId);
         if (sourceNodeInstancePO == null) {
             LOGGER.warn("getRollbackExecutor failed: cannot find sourceNodeInstance from db."
@@ -247,6 +252,7 @@ public abstract class ElementExecutor extends RuntimeExecutor {
             throw new ProcessException(ErrorEnum.GET_NODE_INSTANCE_FAILED);
         }
 
+        // 获取前一个节点模型
         FlowElement sourceNode = FlowModelUtil.getFlowElement(runtimeContext.getFlowElementMap(),
                 sourceNodeInstancePO.getNodeKey());
 

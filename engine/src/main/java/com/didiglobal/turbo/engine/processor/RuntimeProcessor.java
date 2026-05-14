@@ -170,7 +170,7 @@ public class RuntimeProcessor {
             FlowInstanceBO flowInstanceBO = getFlowInstanceBO(commitTaskParam.getFlowInstanceId());
 
             //3.check status
-            // 校验流程状态
+            // 校验流程状态，已终止和已完成的流程不能提交
             if (flowInstanceBO.getStatus() == FlowInstanceStatus.TERMINATED) {
                 LOGGER.warn("commit failed: flowInstance has been completed.||commitTaskParam={}", commitTaskParam);
                 throw new ProcessException(ErrorEnum.COMMIT_REJECTRD);
@@ -264,12 +264,14 @@ public class RuntimeProcessor {
         RuntimeContext runtimeContext = null;
         try {
             //1.param validate
+            // flowInstanceId 和 taskInstanceId为空校验
             ParamValidator.validate(rollbackTaskParam);
 
             //2.get flowInstance
             FlowInstanceBO flowInstanceBO = getFlowInstanceBO(rollbackTaskParam.getFlowInstanceId());
 
             //3.check status
+            // 校验流程状态，非运行中和结束状态的流程不能回滚
             if ((flowInstanceBO.getStatus() != FlowInstanceStatus.RUNNING) && (flowInstanceBO.getStatus() != FlowInstanceStatus.END)) {
                 LOGGER.warn("rollback failed: invalid status to rollback.||rollbackTaskParam={}||status={}",
                     rollbackTaskParam, flowInstanceBO.getStatus());
@@ -318,6 +320,7 @@ public class RuntimeProcessor {
         }
 
         //3. set suspendNodeInstance with taskInstance in param
+        // 设置暂停节点
         NodeInstanceBO suspendNodeInstance = new NodeInstanceBO();
         suspendNodeInstance.setNodeInstanceId(realNodeInstanceId);
         runtimeContext.setSuspendNodeInstance(suspendNodeInstance);
