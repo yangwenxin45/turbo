@@ -397,6 +397,7 @@ public class RuntimeProcessor {
     public NodeInstanceListResult getHistoryUserTaskList(String flowInstanceId, boolean effectiveForSubFlowInstance) {
 
         //1.get nodeInstanceList by flowInstanceId order by id desc
+        // 获取流程实例已创建的节点实例，倒序返回
         List<NodeInstancePO> historyNodeInstanceList = getDescHistoryNodeInstanceList(flowInstanceId);
 
         //2.init result
@@ -419,6 +420,7 @@ public class RuntimeProcessor {
 
             for (NodeInstancePO nodeInstancePO : historyNodeInstanceList) {
                 //ignore noneffective nodeInstance
+                // 判断是否有效，已完成或者激活节点为有效节点
                 if (!isEffectiveNodeInstance(nodeInstancePO.getStatus())) {
                     continue;
                 }
@@ -434,6 +436,7 @@ public class RuntimeProcessor {
                 }
 
                 //ignore un-userTask instance
+                // 判断是否为任务节点，过滤非任务节点
                 if (!isUserTask(nodeInstancePO.getNodeKey(), flowElementMap)) {
                     continue;
                 }
@@ -521,6 +524,7 @@ public class RuntimeProcessor {
                 String instanceDataId = nodeInstancePO.getInstanceDataId();
                 //4.1 build the source sequenceFlow instance
                 if (StringUtils.isNotBlank(sourceNodeKey)) {
+                    // 获取两个节点间的连线
                     FlowElement sourceFlowElement = FlowModelUtil.getSequenceFlow(flowElementMap, sourceNodeKey, nodeKey);
                     if (sourceFlowElement == null) {
                         LOGGER.error("getHistoryElementList failed: sourceFlowElement is null."
@@ -529,6 +533,7 @@ public class RuntimeProcessor {
                     }
 
                     //build ElementInstance
+                    // 节点为激活状态，则设置节点入口的连线为完成状态
                     int sourceSequenceFlowStatus = nodeStatus;
                     if (nodeStatus == NodeInstanceStatus.ACTIVE) {
                         sourceSequenceFlowStatus = NodeInstanceStatus.COMPLETED;
