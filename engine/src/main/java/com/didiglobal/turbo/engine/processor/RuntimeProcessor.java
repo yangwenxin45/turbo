@@ -361,8 +361,10 @@ public class RuntimeProcessor {
 
             if (flowInstancePO.getStatus() == FlowInstanceStatus.COMPLETED) {
                 LOGGER.warn("terminateProcess: flowInstance is completed.||flowInstanceId={}", flowInstanceId);
+                // 已完成的流程不能被终止，保持原状态
                 flowInstanceStatus = FlowInstanceStatus.COMPLETED;
             } else {
+                // 其他状态的流程可以被终止，更新为 TERMINATED
                 processInstanceDAO.updateStatus(flowInstancePO, FlowInstanceStatus.TERMINATED);
                 flowInstanceStatus = FlowInstanceStatus.TERMINATED;
             }
@@ -383,6 +385,7 @@ public class RuntimeProcessor {
     }
 
     public void terminateSubFlowInstance(String flowInstanceId) {
+        // 获取子流程ID
         Set<String> allSubFlowInstanceIds = flowInstanceService.getAllSubFlowInstanceIds(flowInstanceId);
         for (String subFlowInstanceId : allSubFlowInstanceIds) {
             terminateProcess(subFlowInstanceId, false);

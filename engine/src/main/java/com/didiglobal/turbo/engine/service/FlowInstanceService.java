@@ -156,21 +156,29 @@ public class FlowInstanceService {
     private FlowInstanceTreeResult buildFlowInstanceTree(String rootFlowInstanceId, InterruptCondition interruptCondition) {
         FlowInstanceTreeResult flowInstanceTreeResult = new FlowInstanceTreeResult();
         FlowInstancePOJO flowInstance = new FlowInstancePOJO();
+        // 流程实例ID
         flowInstance.setId(rootFlowInstanceId);
         flowInstanceTreeResult.setRootFlowInstancePOJO(flowInstance);
 
+        // 流程实例
         FlowInstancePO rootFlowInstancePO = processInstanceDAO.selectByFlowInstanceId(rootFlowInstanceId);
+        // 流程模型
         FlowDeploymentPO rootFlowDeploymentPO = flowDeploymentDAO.selectByDeployId(rootFlowInstancePO.getFlowDeployId());
         Map<String, FlowElement> rootFlowElementMap = FlowModelUtil.getFlowElementMap(rootFlowDeploymentPO.getFlowModel());
 
+        // 流程已创建的节点实例
         List<NodeInstancePO> nodeInstancePOList = nodeInstanceDAO.selectDescByFlowInstanceId(rootFlowInstanceId);
         for (NodeInstancePO nodeInstancePO : nodeInstancePOList) {
             NodeInstancePOJO nodeInstance = new NodeInstancePOJO();
+            // 节点实例ID
             nodeInstance.setId(nodeInstancePO.getNodeInstanceId());
+            // 节点实例所属流程实例
             nodeInstance.setFlowInstance(flowInstance);
+            // 流程下的节点实例列表
             flowInstance.getNodeInstanceList().add(nodeInstance);
 
             if (interruptCondition != null && interruptCondition.match(nodeInstancePO)) {
+                // 中断节点
                 flowInstanceTreeResult.setInterruptNodeInstancePOJO(nodeInstance);
                 return flowInstanceTreeResult;
             }
