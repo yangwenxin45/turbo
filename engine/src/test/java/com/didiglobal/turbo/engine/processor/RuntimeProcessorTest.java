@@ -3,7 +3,9 @@ package com.didiglobal.turbo.engine.processor;
 import com.alibaba.fastjson.JSON;
 import com.didiglobal.turbo.engine.bo.ElementInstance;
 import com.didiglobal.turbo.engine.bo.NodeInstance;
+import com.didiglobal.turbo.engine.common.Constants;
 import com.didiglobal.turbo.engine.common.ErrorEnum;
+import com.didiglobal.turbo.engine.common.FlowDeploymentStatus;
 import com.didiglobal.turbo.engine.dao.mapper.FlowDeploymentMapper;
 import com.didiglobal.turbo.engine.entity.FlowDeploymentPO;
 import com.didiglobal.turbo.engine.model.InstanceData;
@@ -19,6 +21,7 @@ import org.junit.Test;
 
 import javax.annotation.Resource;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 public class RuntimeProcessorTest extends BaseTest {
@@ -453,5 +456,217 @@ public class RuntimeProcessorTest extends BaseTest {
         LOGGER.info("testGetNodeInstance.||nodeInstanceResult={}", nodeInstanceResult);
 
         Assert.assertTrue(StringUtils.equals(nodeInstanceResult.getNodeInstance().getNodeInstanceId(), startProcessResult.getActiveTaskInstance().getNodeInstanceId()));
+    }
+
+    // ==================== CallActivity 子流程测试 ====================
+
+    /**
+     * CallActivity 子流程完整链路测试 - 短请假分支（days < 3）
+     *
+     * 主流程: StartEvent_main → UserTask_fillForm → CallActivity_approval → UserTask_archive → EndEvent_main
+     * 子流程: StartEvent_sub → ExclusiveGateway_days → UserTask_leader（days<3） → EndEvent_sub1
+     */
+    @Test
+    public void testCallActivityFlow() throws Exception {
+        // ========== 1. 部署子流程 ==========
+        String subFlowModuleId = "subFlowModuleId_callActivity";
+        String subFlowDeployId = "subFlowDeployId_callActivity";
+
+//        FlowDeploymentPO subFlowDeploymentPO = new FlowDeploymentPO();
+//        subFlowDeploymentPO.setFlowName("subFlowName_callActivity");
+//        subFlowDeploymentPO.setFlowKey("subFlowKey_callActivity");
+//        subFlowDeploymentPO.setFlowModuleId(subFlowModuleId);
+//        subFlowDeploymentPO.setFlowDeployId(subFlowDeployId);
+//        subFlowDeploymentPO.setFlowModel(EntityBuilder.buildSubFlowModelStr());
+//        subFlowDeploymentPO.setStatus(FlowDeploymentStatus.DEPLOYED);
+//        subFlowDeploymentPO.setCreateTime(new Date());
+//        subFlowDeploymentPO.setModifyTime(new Date());
+//        subFlowDeploymentPO.setOperator("testOperator");
+//        subFlowDeploymentPO.setRemark("subFlow for CallActivity test");
+//        flowDeploymentMapper.insert(subFlowDeploymentPO);
+//
+//        // ========== 2. 部署主流程（CallActivity 引用子流程） ==========
+        String mainFlowDeployId = "mainFlowDeployId_callActivity";
+//
+//        FlowDeploymentPO mainFlowDeploymentPO = new FlowDeploymentPO();
+//        mainFlowDeploymentPO.setFlowName("mainFlowName_callActivity");
+//        mainFlowDeploymentPO.setFlowKey("mainFlowKey_callActivity");
+//        mainFlowDeploymentPO.setFlowModuleId("mainFlowModuleId_callActivity");
+//        mainFlowDeploymentPO.setFlowDeployId(mainFlowDeployId);
+//        mainFlowDeploymentPO.setFlowModel(EntityBuilder.buildMainFlowWithCallActivityModelStr(subFlowModuleId));
+//        mainFlowDeploymentPO.setStatus(FlowDeploymentStatus.DEPLOYED);
+//        mainFlowDeploymentPO.setCreateTime(new Date());
+//        mainFlowDeploymentPO.setModifyTime(new Date());
+//        mainFlowDeploymentPO.setOperator("testOperator");
+//        mainFlowDeploymentPO.setRemark("mainFlow for CallActivity test");
+//        flowDeploymentMapper.insert(mainFlowDeploymentPO);
+
+        // ========== 3. 启动主流程 → 挂起在 UserTask_fillForm ==========
+        StartProcessParam startProcessParam = new StartProcessParam();
+        startProcessParam.setFlowDeployId(mainFlowDeployId);
+        List<InstanceData> startVariables = new ArrayList<>();
+        startVariables.add(new InstanceData("applicant", "张三"));
+        startVariables.add(new InstanceData("days", 2));
+        startProcessParam.setVariables(startVariables);
+
+        StartProcessResult startProcessResult = runtimeProcessor.startProcess(startProcessParam);
+        LOGGER.info("testCallActivityFlow step1 startProcess.||result={}", startProcessResult);
+        Assert.assertTrue(startProcessResult.getErrCode() == ErrorEnum.COMMIT_SUSPEND.getErrNo());
+        Assert.assertTrue(StringUtils.equals(startProcessResult.getActiveTaskInstance().getModelKey(), "UserTask_fillForm"));
+
+        // ========== 4. 提交 UserTask_fillForm → 推进到 CallActivity_approval ==========
+        CommitTaskParam commitTaskParam = new CommitTaskParam();
+        commitTaskParam.setFlowInstanceId(startProcessResult.getFlowInstanceId());
+        commitTaskParam.setTaskInstanceId(startProcessResult.getActiveTaskInstance().getNodeInstanceId());
+
+        CommitTaskResult commitTaskResult = runtimeProcessor.commit(commitTaskParam);
+        LOGGER.info("testCallActivityFlow step2 commitFillForm.||result={}", commitTaskResult);
+        Assert.assertTrue(commitTaskResult.getErrCode() == ErrorEnum.COMMIT_SUSPEND.getErrNo());
+        Assert.assertTrue(StringUtils.equals(commitTaskResult.getActiveTaskInstance().getModelKey(), "CallActivity_approval"));
+
+        // ========== 5. 提交 CallActivity_approval → 启动子流程 ==========
+        commitTaskParam = new CommitTaskParam();
+        commitTaskParam.setFlowInstanceId(commitTaskResult.getFlowInstanceId());
+        commitTaskParam.setTaskInstanceId(commitTaskResult.getActiveTaskInstance().getNodeInstanceId());
+
+        // 从 CallActivity 节点属性中读取子流程 flowModuleId
+        String callActivityFlowModuleId = commitTaskResult.getActiveTaskInstance().getProperties()
+            .get(Constants.ELEMENT_PROPERTIES.CALL_ACTIVITY_FLOW_MODULE_ID).toString();
+        commitTaskParam.setCallActivityFlowModuleId(callActivityFlowModuleId);
+
+        // 传入子流程所需的变量（days 用于 ExclusiveGateway 条件判断）
+        List<InstanceData> callActivityVariables = new ArrayList<>();
+        callActivityVariables.add(new InstanceData("days", 2));
+        commitTaskParam.setVariables(callActivityVariables);
+
+        commitTaskResult = runtimeProcessor.commit(commitTaskParam);
+        LOGGER.info("testCallActivityFlow step3 commitCallActivity.||result={}", commitTaskResult);
+        Assert.assertTrue(commitTaskResult.getErrCode() == ErrorEnum.COMMIT_SUSPEND.getErrNo());
+        Assert.assertTrue(StringUtils.equals(commitTaskResult.getActiveTaskInstance().getModelKey(), "CallActivity_approval"));
+
+        // 子流程挂起在 UserTask_leader（因为 days=2 < 3）
+        List<RuntimeResult> subNodeResultList = commitTaskResult.getActiveTaskInstance().getSubNodeResultList();
+        Assert.assertNotNull(subNodeResultList);
+        Assert.assertTrue(subNodeResultList.size() == 1);
+        Assert.assertTrue(StringUtils.equals(subNodeResultList.get(0).getActiveTaskInstance().getModelKey(), "UserTask_leader"));
+
+        // ========== 6. 提交子流程 UserTask_leader → 子流程结束 → CallActivity完成 → UserTask_archive ==========
+        // 注意：使用父流程的 flowInstanceId + 子流程的 nodeInstanceId 提交
+        commitTaskParam = new CommitTaskParam();
+        commitTaskParam.setFlowInstanceId(commitTaskResult.getFlowInstanceId());
+        commitTaskParam.setTaskInstanceId(subNodeResultList.get(0).getActiveTaskInstance().getNodeInstanceId());
+
+        commitTaskResult = runtimeProcessor.commit(commitTaskParam);
+        LOGGER.info("testCallActivityFlow step4 commitSubFlowUserTask.||result={}", commitTaskResult);
+        Assert.assertTrue(commitTaskResult.getErrCode() == ErrorEnum.COMMIT_SUSPEND.getErrNo());
+        Assert.assertTrue(StringUtils.equals(commitTaskResult.getActiveTaskInstance().getModelKey(), "UserTask_archive"));
+
+        // ========== 7. 提交 UserTask_archive → 主流程结束 ==========
+        commitTaskParam = new CommitTaskParam();
+        commitTaskParam.setFlowInstanceId(commitTaskResult.getFlowInstanceId());
+        commitTaskParam.setTaskInstanceId(commitTaskResult.getActiveTaskInstance().getNodeInstanceId());
+
+        commitTaskResult = runtimeProcessor.commit(commitTaskParam);
+        LOGGER.info("testCallActivityFlow step5 commitArchive.||result={}", commitTaskResult);
+        Assert.assertTrue(commitTaskResult.getErrCode() == ErrorEnum.SUCCESS.getErrNo());
+    }
+
+    /**
+     * CallActivity 子流程完整链路测试 - 长请假分支（days >= 3）
+     *
+     * 主流程: StartEvent_main → UserTask_fillForm → CallActivity_approval → UserTask_archive → EndEvent_main
+     * 子流程: StartEvent_sub → ExclusiveGateway_days → UserTask_manager（days>=3） → EndEvent_sub2
+     */
+    @Test
+    public void testCallActivityFlowWithLongLeave() throws Exception {
+        // ========== 1. 部署子流程 ==========
+        String subFlowModuleId = "subFlowModuleId_callActivity_long_" + System.currentTimeMillis();
+        String subFlowDeployId = "subFlowDeployId_callActivity_long_" + System.currentTimeMillis();
+
+        FlowDeploymentPO subFlowDeploymentPO = new FlowDeploymentPO();
+        subFlowDeploymentPO.setFlowName("subFlowName_callActivity_long");
+        subFlowDeploymentPO.setFlowKey("subFlowKey_callActivity_long");
+        subFlowDeploymentPO.setFlowModuleId(subFlowModuleId);
+        subFlowDeploymentPO.setFlowDeployId(subFlowDeployId);
+        subFlowDeploymentPO.setFlowModel(EntityBuilder.buildSubFlowModelStr());
+        subFlowDeploymentPO.setStatus(FlowDeploymentStatus.DEPLOYED);
+        subFlowDeploymentPO.setCreateTime(new Date());
+        subFlowDeploymentPO.setModifyTime(new Date());
+        subFlowDeploymentPO.setOperator("testOperator");
+        subFlowDeploymentPO.setRemark("subFlow for CallActivity long leave test");
+        flowDeploymentMapper.insert(subFlowDeploymentPO);
+
+        // ========== 2. 部署主流程 ==========
+        String mainFlowDeployId = "mainFlowDeployId_callActivity_long_" + System.currentTimeMillis();
+
+        FlowDeploymentPO mainFlowDeploymentPO = new FlowDeploymentPO();
+        mainFlowDeploymentPO.setFlowName("mainFlowName_callActivity_long");
+        mainFlowDeploymentPO.setFlowKey("mainFlowKey_callActivity_long");
+        mainFlowDeploymentPO.setFlowModuleId("mainFlowModuleId_callActivity_long_" + System.currentTimeMillis());
+        mainFlowDeploymentPO.setFlowDeployId(mainFlowDeployId);
+        mainFlowDeploymentPO.setFlowModel(EntityBuilder.buildMainFlowWithCallActivityModelStr(subFlowModuleId));
+        mainFlowDeploymentPO.setStatus(FlowDeploymentStatus.DEPLOYED);
+        mainFlowDeploymentPO.setCreateTime(new Date());
+        mainFlowDeploymentPO.setModifyTime(new Date());
+        mainFlowDeploymentPO.setOperator("testOperator");
+        mainFlowDeploymentPO.setRemark("mainFlow for CallActivity long leave test");
+        flowDeploymentMapper.insert(mainFlowDeploymentPO);
+
+        // ========== 3. 启动主流程 ==========
+        StartProcessParam startProcessParam = new StartProcessParam();
+        startProcessParam.setFlowDeployId(mainFlowDeployId);
+        List<InstanceData> startVariables = new ArrayList<>();
+        startVariables.add(new InstanceData("applicant", "李四"));
+        startVariables.add(new InstanceData("days", 5));
+        startProcessParam.setVariables(startVariables);
+
+        StartProcessResult startProcessResult = runtimeProcessor.startProcess(startProcessParam);
+        Assert.assertTrue(startProcessResult.getErrCode() == ErrorEnum.COMMIT_SUSPEND.getErrNo());
+        Assert.assertTrue(StringUtils.equals(startProcessResult.getActiveTaskInstance().getModelKey(), "UserTask_fillForm"));
+
+        // ========== 4. 提交 UserTask_fillForm ==========
+        CommitTaskParam commitTaskParam = new CommitTaskParam();
+        commitTaskParam.setFlowInstanceId(startProcessResult.getFlowInstanceId());
+        commitTaskParam.setTaskInstanceId(startProcessResult.getActiveTaskInstance().getNodeInstanceId());
+
+        CommitTaskResult commitTaskResult = runtimeProcessor.commit(commitTaskParam);
+        Assert.assertTrue(StringUtils.equals(commitTaskResult.getActiveTaskInstance().getModelKey(), "CallActivity_approval"));
+
+        // ========== 5. 提交 CallActivity_approval → 启动子流程 ==========
+        commitTaskParam = new CommitTaskParam();
+        commitTaskParam.setFlowInstanceId(commitTaskResult.getFlowInstanceId());
+        commitTaskParam.setTaskInstanceId(commitTaskResult.getActiveTaskInstance().getNodeInstanceId());
+        commitTaskParam.setCallActivityFlowModuleId(
+            commitTaskResult.getActiveTaskInstance().getProperties()
+                .get(Constants.ELEMENT_PROPERTIES.CALL_ACTIVITY_FLOW_MODULE_ID).toString());
+        List<InstanceData> callActivityVariables = new ArrayList<>();
+        callActivityVariables.add(new InstanceData("days", 5));
+        commitTaskParam.setVariables(callActivityVariables);
+
+        commitTaskResult = runtimeProcessor.commit(commitTaskParam);
+        Assert.assertTrue(commitTaskResult.getErrCode() == ErrorEnum.COMMIT_SUSPEND.getErrNo());
+
+        // 子流程挂起在 UserTask_manager（因为 days=5 >= 3）
+        List<RuntimeResult> subNodeResultList = commitTaskResult.getActiveTaskInstance().getSubNodeResultList();
+        Assert.assertNotNull(subNodeResultList);
+        Assert.assertTrue(subNodeResultList.size() == 1);
+        Assert.assertTrue(StringUtils.equals(subNodeResultList.get(0).getActiveTaskInstance().getModelKey(), "UserTask_manager"));
+
+        // ========== 6. 提交子流程 UserTask_manager ==========
+        commitTaskParam = new CommitTaskParam();
+        commitTaskParam.setFlowInstanceId(commitTaskResult.getFlowInstanceId());
+        commitTaskParam.setTaskInstanceId(subNodeResultList.get(0).getActiveTaskInstance().getNodeInstanceId());
+
+        commitTaskResult = runtimeProcessor.commit(commitTaskParam);
+        Assert.assertTrue(commitTaskResult.getErrCode() == ErrorEnum.COMMIT_SUSPEND.getErrNo());
+        Assert.assertTrue(StringUtils.equals(commitTaskResult.getActiveTaskInstance().getModelKey(), "UserTask_archive"));
+
+        // ========== 7. 提交 UserTask_archive → 主流程结束 ==========
+        commitTaskParam = new CommitTaskParam();
+        commitTaskParam.setFlowInstanceId(commitTaskResult.getFlowInstanceId());
+        commitTaskParam.setTaskInstanceId(commitTaskResult.getActiveTaskInstance().getNodeInstanceId());
+
+        commitTaskResult = runtimeProcessor.commit(commitTaskParam);
+        Assert.assertTrue(commitTaskResult.getErrCode() == ErrorEnum.SUCCESS.getErrNo());
     }
 }

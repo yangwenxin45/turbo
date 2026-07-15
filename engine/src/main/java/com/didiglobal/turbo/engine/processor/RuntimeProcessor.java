@@ -214,6 +214,7 @@ public class RuntimeProcessor {
         if (parentRuntimeContext == null) {
             Stack<String> nodeInstanceId2RootStack = flowInstanceService.getNodeInstanceIdStack(commitTaskParam.getFlowInstanceId(), commitTaskParam.getTaskInstanceId());
             runtimeContext.setSuspendNodeInstanceStack(nodeInstanceId2RootStack);
+            // 设置为最外层父流程ID
             realNodeInstanceId = nodeInstanceId2RootStack.isEmpty() ? commitTaskParam.getTaskInstanceId() : nodeInstanceId2RootStack.pop();
         } else {
             runtimeContext.setSuspendNodeInstanceStack(parentRuntimeContext.getSuspendNodeInstanceStack());

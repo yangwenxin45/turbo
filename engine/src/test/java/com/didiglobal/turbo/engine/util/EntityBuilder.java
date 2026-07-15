@@ -1150,4 +1150,228 @@ public class EntityBuilder {
         flowModel.setFlowElementList(flowElementList);
         return flowModel;
     }
+
+    /**
+     * 构建包含 CallActivity（子流程调用）的主流程模型
+     *
+     * @param subFlowModuleId 子流程的 flowModuleId
+     * @return 主流程模型 JSON 字符串
+     */
+    public static String buildMainFlowWithCallActivityModelStr(String subFlowModuleId) {
+        List<FlowElement> flowElementList = Lists.newArrayList();
+
+        // 1. StartEvent
+        StartEvent startEvent = new StartEvent();
+        startEvent.setKey("StartEvent_main");
+        startEvent.setType(FlowElementType.START_EVENT);
+        List<String> seOutgoings = new ArrayList<>();
+        seOutgoings.add("SF_start_to_form");
+        startEvent.setOutgoing(seOutgoings);
+        flowElementList.add(startEvent);
+
+        // 2. UserTask - 填写请假单
+        UserTask fillFormTask = new UserTask();
+        fillFormTask.setKey("UserTask_fillForm");
+        fillFormTask.setType(FlowElementType.USER_TASK);
+        List<String> ut1Incomings = new ArrayList<>();
+        ut1Incomings.add("SF_start_to_form");
+        fillFormTask.setIncoming(ut1Incomings);
+        List<String> ut1Outgoings = new ArrayList<>();
+        ut1Outgoings.add("SF_form_to_ca");
+        fillFormTask.setOutgoing(ut1Outgoings);
+        Map<String, Object> ut1Props = new HashMap<>();
+        ut1Props.put("name", "填写请假单");
+        fillFormTask.setProperties(ut1Props);
+        flowElementList.add(fillFormTask);
+
+        // 3. CallActivity - 审批子流程
+        CallActivity callActivity = new CallActivity();
+        callActivity.setKey("CallActivity_approval");
+        callActivity.setType(FlowElementType.CALL_ACTIVITY);
+        List<String> caIncomings = new ArrayList<>();
+        caIncomings.add("SF_form_to_ca");
+        callActivity.setIncoming(caIncomings);
+        List<String> caOutgoings = new ArrayList<>();
+        caOutgoings.add("SF_ca_to_archive");
+        callActivity.setOutgoing(caOutgoings);
+        Map<String, Object> caProps = new HashMap<>();
+        caProps.put("name", "审批子流程");
+        caProps.put("callActivityExecuteType", Constants.CALL_ACTIVITY_EXECUTE_TYPE.SYNC);
+        caProps.put("callActivityInstanceType", Constants.CALL_ACTIVITY_INSTANCE_TYPE.SINGLE);
+        caProps.put("callActivityFlowModuleId", subFlowModuleId);
+        caProps.put("callActivityInParamType", Constants.CALL_ACTIVITY_PARAM_TYPE.PART);
+        caProps.put("callActivityInParam", "[{\"sourceType\":\"context\",\"sourceKey\":\"applicant\",\"targetKey\":\"user_name\"},{\"sourceType\":\"fixed\",\"sourceValue\":\"2024\",\"targetKey\":\"year\"}]");
+        caProps.put("callActivityOutParamType", Constants.CALL_ACTIVITY_PARAM_TYPE.FULL);
+        callActivity.setProperties(caProps);
+        flowElementList.add(callActivity);
+
+        // 4. UserTask - 人事归档
+        UserTask archiveTask = new UserTask();
+        archiveTask.setKey("UserTask_archive");
+        archiveTask.setType(FlowElementType.USER_TASK);
+        List<String> ut2Incomings = new ArrayList<>();
+        ut2Incomings.add("SF_ca_to_archive");
+        archiveTask.setIncoming(ut2Incomings);
+        List<String> ut2Outgoings = new ArrayList<>();
+        ut2Outgoings.add("SF_archive_to_end");
+        archiveTask.setOutgoing(ut2Outgoings);
+        Map<String, Object> ut2Props = new HashMap<>();
+        ut2Props.put("name", "人事归档");
+        archiveTask.setProperties(ut2Props);
+        flowElementList.add(archiveTask);
+
+        // 5. EndEvent
+        EndEvent endEvent = new EndEvent();
+        endEvent.setKey("EndEvent_main");
+        endEvent.setType(FlowElementType.END_EVENT);
+        List<String> eeIncomings = new ArrayList<>();
+        eeIncomings.add("SF_archive_to_end");
+        endEvent.setIncoming(eeIncomings);
+        flowElementList.add(endEvent);
+
+        // 6. SequenceFlows
+        SequenceFlow sf1 = new SequenceFlow();
+        sf1.setKey("SF_start_to_form");
+        sf1.setType(FlowElementType.SEQUENCE_FLOW);
+        sf1.setIncoming(Lists.newArrayList("StartEvent_main"));
+        sf1.setOutgoing(Lists.newArrayList("UserTask_fillForm"));
+        flowElementList.add(sf1);
+
+        SequenceFlow sf2 = new SequenceFlow();
+        sf2.setKey("SF_form_to_ca");
+        sf2.setType(FlowElementType.SEQUENCE_FLOW);
+        sf2.setIncoming(Lists.newArrayList("UserTask_fillForm"));
+        sf2.setOutgoing(Lists.newArrayList("CallActivity_approval"));
+        flowElementList.add(sf2);
+
+        SequenceFlow sf3 = new SequenceFlow();
+        sf3.setKey("SF_ca_to_archive");
+        sf3.setType(FlowElementType.SEQUENCE_FLOW);
+        sf3.setIncoming(Lists.newArrayList("CallActivity_approval"));
+        sf3.setOutgoing(Lists.newArrayList("UserTask_archive"));
+        flowElementList.add(sf3);
+
+        SequenceFlow sf4 = new SequenceFlow();
+        sf4.setKey("SF_archive_to_end");
+        sf4.setType(FlowElementType.SEQUENCE_FLOW);
+        sf4.setIncoming(Lists.newArrayList("UserTask_archive"));
+        sf4.setOutgoing(Lists.newArrayList("EndEvent_main"));
+        flowElementList.add(sf4);
+
+        FlowModel flowModel = new FlowModel();
+        flowModel.setFlowElementList(flowElementList);
+        return JSON.toJSONString(flowModel);
+    }
+
+    /**
+     * 构建被 CallActivity 调用的子流程模型
+     *
+     * @return 子流程模型 JSON 字符串
+     */
+    public static String buildSubFlowModelStr() {
+        List<FlowElement> flowElementList = Lists.newArrayList();
+
+        // 1. StartEvent
+        StartEvent startEvent = new StartEvent();
+        startEvent.setKey("StartEvent_sub");
+        startEvent.setType(FlowElementType.START_EVENT);
+        startEvent.setOutgoing(Lists.newArrayList("SF_sub_start_to_gateway"));
+        flowElementList.add(startEvent);
+
+        // 2. ExclusiveGateway - 判断请假天数
+        ExclusiveGateway exclusiveGateway = new ExclusiveGateway();
+        exclusiveGateway.setKey("ExclusiveGateway_days");
+        exclusiveGateway.setType(FlowElementType.EXCLUSIVE_GATEWAY);
+        exclusiveGateway.setIncoming(Lists.newArrayList("SF_sub_start_to_gateway"));
+        exclusiveGateway.setOutgoing(Lists.newArrayList("SF_sub_short", "SF_sub_long"));
+        Map<String, Object> egProps = new HashMap<>();
+        egProps.put("name", "判断请假天数");
+        egProps.put("hookInfoIds", "");
+        exclusiveGateway.setProperties(egProps);
+        flowElementList.add(exclusiveGateway);
+
+        // 3. UserTask - 直属领导审批（小于3天）
+        UserTask leaderTask = new UserTask();
+        leaderTask.setKey("UserTask_leader");
+        leaderTask.setType(FlowElementType.USER_TASK);
+        leaderTask.setIncoming(Lists.newArrayList("SF_sub_short"));
+        leaderTask.setOutgoing(Lists.newArrayList("SF_sub_leader_to_end"));
+        Map<String, Object> ltProps = new HashMap<>();
+        ltProps.put("name", "直属领导审批");
+        leaderTask.setProperties(ltProps);
+        flowElementList.add(leaderTask);
+
+        // 4. UserTask - 部门负责人审批（大于等于3天）
+        UserTask managerTask = new UserTask();
+        managerTask.setKey("UserTask_manager");
+        managerTask.setType(FlowElementType.USER_TASK);
+        managerTask.setIncoming(Lists.newArrayList("SF_sub_long"));
+        managerTask.setOutgoing(Lists.newArrayList("SF_sub_manager_to_end"));
+        Map<String, Object> mtProps = new HashMap<>();
+        mtProps.put("name", "部门负责人审批");
+        managerTask.setProperties(mtProps);
+        flowElementList.add(managerTask);
+
+        // 5. EndEvent - 分支1结束
+        EndEvent endEvent1 = new EndEvent();
+        endEvent1.setKey("EndEvent_sub1");
+        endEvent1.setType(FlowElementType.END_EVENT);
+        endEvent1.setIncoming(Lists.newArrayList("SF_sub_leader_to_end"));
+        flowElementList.add(endEvent1);
+
+        // 6. EndEvent - 分支2结束
+        EndEvent endEvent2 = new EndEvent();
+        endEvent2.setKey("EndEvent_sub2");
+        endEvent2.setType(FlowElementType.END_EVENT);
+        endEvent2.setIncoming(Lists.newArrayList("SF_sub_manager_to_end"));
+        flowElementList.add(endEvent2);
+
+        // 7. SequenceFlows
+        SequenceFlow sfStart = new SequenceFlow();
+        sfStart.setKey("SF_sub_start_to_gateway");
+        sfStart.setType(FlowElementType.SEQUENCE_FLOW);
+        sfStart.setIncoming(Lists.newArrayList("StartEvent_sub"));
+        sfStart.setOutgoing(Lists.newArrayList("ExclusiveGateway_days"));
+        flowElementList.add(sfStart);
+
+        SequenceFlow sfShort = new SequenceFlow();
+        sfShort.setKey("SF_sub_short");
+        sfShort.setType(FlowElementType.SEQUENCE_FLOW);
+        sfShort.setIncoming(Lists.newArrayList("ExclusiveGateway_days"));
+        sfShort.setOutgoing(Lists.newArrayList("UserTask_leader"));
+        Map<String, Object> sfShortProps = new HashMap<>();
+        sfShortProps.put("defaultConditions", "false");
+        sfShortProps.put("conditionsequenceflow", "days < 3");
+        sfShort.setProperties(sfShortProps);
+        flowElementList.add(sfShort);
+
+        SequenceFlow sfLong = new SequenceFlow();
+        sfLong.setKey("SF_sub_long");
+        sfLong.setType(FlowElementType.SEQUENCE_FLOW);
+        sfLong.setIncoming(Lists.newArrayList("ExclusiveGateway_days"));
+        sfLong.setOutgoing(Lists.newArrayList("UserTask_manager"));
+        Map<String, Object> sfLongProps = new HashMap<>();
+        sfLongProps.put("defaultConditions", "true");
+        sfLongProps.put("conditionsequenceflow", "days >= 3");
+        sfLong.setProperties(sfLongProps);
+        flowElementList.add(sfLong);
+
+        SequenceFlow sfLeaderEnd = new SequenceFlow();
+        sfLeaderEnd.setKey("SF_sub_leader_to_end");
+        sfLeaderEnd.setType(FlowElementType.SEQUENCE_FLOW);
+        sfLeaderEnd.setIncoming(Lists.newArrayList("UserTask_leader"));
+        sfLeaderEnd.setOutgoing(Lists.newArrayList("EndEvent_sub1"));
+        flowElementList.add(sfLeaderEnd);
+
+        SequenceFlow sfManagerEnd = new SequenceFlow();
+        sfManagerEnd.setKey("SF_sub_manager_to_end");
+        sfManagerEnd.setType(FlowElementType.SEQUENCE_FLOW);
+        sfManagerEnd.setIncoming(Lists.newArrayList("UserTask_manager"));
+        sfManagerEnd.setOutgoing(Lists.newArrayList("EndEvent_sub2"));
+        flowElementList.add(sfManagerEnd);
+
+        FlowModel flowModel = new FlowModel();
+        flowModel.setFlowElementList(flowElementList);
+        return JSON.toJSONString(flowModel);
+    }
 }

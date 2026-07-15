@@ -73,6 +73,8 @@ public class SyncSingleCallActivityExecutor extends AbstractCallActivityExecutor
         String nodeName = FlowModelUtil.getElementName(flowElement);
         LOGGER.info("doExecute: syncSingleCallActivity to commit.||flowInstanceId={}||nodeInstanceId={}||nodeKey={}||nodeName={}",
             runtimeContext.getFlowInstanceId(), currentNodeInstance.getNodeInstanceId(), flowElement.getKey(), nodeName);
+
+        // 子流程和任务节点一样，都是挂起等外部触发提交流程
         throw new SuspendException(ErrorEnum.COMMIT_SUSPEND, MessageFormat.format(Constants.NODE_INSTANCE_FORMAT,
             flowElement.getKey(), nodeName, currentNodeInstance.getNodeInstanceId()));
     }
@@ -89,8 +91,10 @@ public class SyncSingleCallActivityExecutor extends AbstractCallActivityExecutor
     protected void doCommit(RuntimeContext runtimeContext) throws ProcessException {
         boolean commitCallActivityNode = CollectionUtils.isEmpty(runtimeContext.getSuspendNodeInstanceStack());
         if (commitCallActivityNode) {
+            // 首次启动子流程
             startProcessCallActivity(runtimeContext);
         } else {
+            // 后续提交子流程
             commitCallActivity(runtimeContext);
         }
     }
@@ -135,12 +139,14 @@ public class SyncSingleCallActivityExecutor extends AbstractCallActivityExecutor
     protected void startProcessCallActivity(RuntimeContext runtimeContext) throws ProcessException {
         NodeInstanceBO currentNodeInstance = runtimeContext.getCurrentNodeInstance();
         // 1.check reentrant execute
+        // 重入检查：如果已存在映射关系，说明子流程已启动过
         FlowInstanceMappingPO flowInstanceMappingPO = flowInstanceMappingDAO.selectFlowInstanceMappingPO(runtimeContext.getFlowInstanceId(), currentNodeInstance.getNodeInstanceId());
         if (flowInstanceMappingPO != null) {
             handleReentrantSubFlowInstance(runtimeContext, flowInstanceMappingPO);
             return;
         }
         // 2.check CallActivity nested level
+        // 校验嵌套层级
         preCheckCallActivityNestedLevel(runtimeContext);
 
         // 3.get flowModuleId

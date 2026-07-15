@@ -100,6 +100,7 @@ public class ExecutorFactory {
             callActivityInstanceType = properties.get(Constants.ELEMENT_PROPERTIES.CALL_ACTIVITY_INSTANCE_TYPE).toString();
         }
 
+        // 当前仅支持同步执行、单实例子流程
         if (callActivityExecuteType.equals(Constants.CALL_ACTIVITY_EXECUTE_TYPE.SYNC)
             && callActivityInstanceType.equals(Constants.CALL_ACTIVITY_INSTANCE_TYPE.SINGLE)) {
             return syncSingleCallActivityExecutor;

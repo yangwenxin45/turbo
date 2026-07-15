@@ -67,6 +67,7 @@ public class FlowInstanceService {
         FlowInstanceTreeResult flowInstanceTreeResult = buildFlowInstanceTree(rootFlowInstanceId,
             nodeInstancePO -> nodeInstancePO.getNodeInstanceId().equals(commitNodeInstanceId));
         NodeInstancePOJO rightNodeInstance = flowInstanceTreeResult.getInterruptNodeInstancePOJO();
+        // 记录从目标节点沿着 CallActivity 嵌套链回溯到根流程的完整路径
         Stack<String> stack = new Stack<>();
         while (rightNodeInstance != null) {
             stack.push(rightNodeInstance.getId());
@@ -191,9 +192,12 @@ public class FlowInstanceService {
             for (FlowInstanceMappingPO flowInstanceMappingPO : flowInstanceMappingPOS) {
                 FlowInstanceTreeResult subFlowInstanceTreeResult = buildFlowInstanceTree(flowInstanceMappingPO.getSubFlowInstanceId(), interruptCondition);
                 FlowInstancePOJO subFlowInstance = subFlowInstanceTreeResult.getRootFlowInstancePOJO();
+                // 子流程关联父流程
                 subFlowInstance.setBelongNodeInstance(nodeInstance);
+                // 父流程关联子流程
                 nodeInstance.getSubFlowInstanceList().add(subFlowInstance);
                 if (subFlowInstanceTreeResult.needInterrupt()) {
+                    // 父流程设置子流程的中断节点
                     flowInstanceTreeResult.setInterruptNodeInstancePOJO(subFlowInstanceTreeResult.getInterruptNodeInstancePOJO());
                     return flowInstanceTreeResult;
                 }

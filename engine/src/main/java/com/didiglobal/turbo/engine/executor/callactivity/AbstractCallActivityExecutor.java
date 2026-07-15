@@ -45,6 +45,7 @@ public abstract class AbstractCallActivityExecutor extends ElementExecutor {
     @Resource
     protected BusinessConfig businessConfig;
 
+    // 计算合并子流程启动时所需的初始变量
     protected List<InstanceData> getCallActivityVariables(RuntimeContext runtimeContext) throws ProcessException {
         List<InstanceData> callActivityInitData = InstanceDataUtil.getInstanceDataList(runtimeContext.getInstanceDataMap());
         List<InstanceData> instanceDataFromMainFlow = calculateCallActivityInParamFromMainFlow(runtimeContext);
@@ -59,6 +60,7 @@ public abstract class AbstractCallActivityExecutor extends ElementExecutor {
     }
 
     // main > sub
+    // 主流程 -> 子流程传递变量数据
     protected List<InstanceData> calculateCallActivityInParamFromMainFlow(RuntimeContext runtimeContext) throws ProcessException {
         FlowElement currentNodeModel = runtimeContext.getCurrentNodeModel();
 
@@ -71,6 +73,7 @@ public abstract class AbstractCallActivityExecutor extends ElementExecutor {
     }
 
     // sub > main
+    // 子流程 -> 主流程传递变量数据
     protected List<InstanceData> calculateCallActivityOutParamFromSubFlow(RuntimeContext runtimeContext, List<InstanceData> subFlowData) throws ProcessException {
         FlowElement currentNodeModel = runtimeContext.getCurrentNodeModel();
         return calculateCallActivityDataTransfer(currentNodeModel, InstanceDataUtil.getInstanceDataMap(subFlowData),
@@ -78,8 +81,10 @@ public abstract class AbstractCallActivityExecutor extends ElementExecutor {
             Constants.ELEMENT_PROPERTIES.CALL_ACTIVITY_OUT_PARAM);
     }
 
+    // 计算传递变量数据
     private List<InstanceData> calculateCallActivityDataTransfer(FlowElement currentNodeModel, Map<String, InstanceData> instanceDataMap, String callActivityParamType, String callActivityParam) throws ProcessException {
         // default FULL
+        // 默认传递全部变量
         String callActivityInParamType = (String) currentNodeModel.getProperties().getOrDefault(callActivityParamType, Constants.CALL_ACTIVITY_PARAM_TYPE.FULL);
         if (callActivityInParamType.equals(Constants.CALL_ACTIVITY_PARAM_TYPE.NONE)) {
             return new ArrayList<>();

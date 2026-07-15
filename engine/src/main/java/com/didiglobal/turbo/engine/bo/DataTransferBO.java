@@ -9,9 +9,13 @@ package com.didiglobal.turbo.engine.bo;
  */
 public class DataTransferBO {
 
+    // 来源类型：context / fixed
     private String sourceType;
+    // 来源变量名（context使用）
     private String sourceKey;
+    // 固定值（fixed使用）
     private String sourceValue;
+    // 目标变量名（子流程中的变量名）
     private String targetKey;
 
     public String getSourceType() {

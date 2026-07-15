@@ -10,6 +10,7 @@ public class RuntimeTaskParam {
     private String flowInstanceId;
     private String taskInstanceId;
     // For internal transmission runtimeContext
+    // 内部使用字段，透传使用
     private RuntimeContext runtimeContext;
     private Map<String, Object> extendProperties = new HashMap<>(16);
 
